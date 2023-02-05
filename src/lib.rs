@@ -1,9 +1,18 @@
-use std::fmt::Error;
-
-const ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
 /// Rolling Buffer that will fill to capacity and then start overwriting the oldest data first.
-struct RollingBuffer<T>
+///
+/// Example
+/// ```
+/// let mut buff = RollingBuffer::new(20);
+/// for num in 0..40 {
+///     buff.add(num);
+///     let vec_out = buff.values();
+///     let iter_out: Vec<_> = buff.values_iter().cloned().collect();
+///     println!("len: {} - {:?}", buff.len(), vec_out);
+///     println!("len: {} - {:?}", buff.len(), iter_out);
+///     assert_eq!(vec_out, iter_out);
+/// }
+/// ```
+pub struct RollingBuffer<T>
 where
     T: Copy + Default,
 {
@@ -18,7 +27,7 @@ where
     T: Copy + Default,
 {
     /// Create a new buffer and allocate memory for it immediately up to a size of capacity.
-    fn new(capacity: usize) -> RollingBuffer<T> {
+    pub fn new(capacity: usize) -> RollingBuffer<T> {
         RollingBuffer {
             capacity,
             buffer: vec![Default::default(); capacity],
@@ -27,18 +36,18 @@ where
         }
     }
     /// Add a new value to the buffer, if it has reached capacity it will overwrite the oldest datapoint.
-    fn add(&mut self, value: T) -> bool {
+    pub fn add(&mut self, value: T) -> bool {
         self.buffer[self.current_index] = value;
         self.current_index = (self.current_index + 1) % self.capacity;
         self.count = std::cmp::min(self.count + 1, self.capacity);
         self.is_full()
     }
     /// How many valid values are in the buffer?
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.count
     }
     /// Report is the buffer has reached capacity and is now overwriting old data.
-    fn is_full(&self) -> bool {
+    pub fn is_full(&self) -> bool {
         self.count == self.capacity
     }
     /// Return a single value from the buffer at the position requested.  
@@ -46,7 +55,7 @@ where
     /// where index 0 is the newest datapoint, 1 is the second newest, and so on.
     ///
     /// If index > capacity, returns the oldest valid number
-    fn get(&self, index: usize) -> &T {
+    pub fn get(&self, index: usize) -> &T {
         if index >= self.capacity {
             return &self.buffer[(self.current_index + self.capacity - 1 + self.capacity
                 - self.count)
@@ -54,13 +63,23 @@ where
         }
         &self.buffer[(self.current_index + index + self.capacity - self.count) % self.capacity]
     }
-    /// Return all of the valid values in the buffer, in the order they were added.
-    fn values(&self) -> Vec<T> {
+    /// Return all of the valid values in the buffer, in the order they were added as a Vector.
+    pub fn values(&self) -> Vec<T> {
         let mut values = Vec::with_capacity(self.count);
-        for i in (0..self.count).rev() {
+        for i in 0..self.count {
             values.push(*self.get(i));
         }
         values
+    }
+    /// Return all of the vald values in the buffer, in the order they were added, as an Iterator.
+    ///
+    /// Simple example:
+    /// ```
+    /// let value_as_vec: Vec<_> = buff.values_iter().cloned().collect();
+    /// ```
+    ///
+    pub fn values_iter(&self) -> impl Iterator<Item = &T> {
+        (0..self.count).map(move |i| self.get(i))
     }
 }
 
@@ -68,22 +87,62 @@ where
 mod tests {
     use super::*;
     use std::time::Instant;
-
+    // #[ignore]
     #[test]
-    fn it_works() {
+    fn test_timing() {
         let start = Instant::now();
         let mut buff = RollingBuffer::new(20);
         for num in 0..40 {
-            // let val = ALPHABET.chars().nth(num).unwrap_or('Z');
             let val = num;
             buff.add(val);
-            let _val = buff.values();
             println!("len: {} - {:?}", buff.len(), buff.values());
-        }
-        for num in 0..40 {
-            println!("len: {} - {:?}", buff.len(), buff.get(num));
+            let output: Vec<&i32> = buff.values_iter().collect();
+            println!("len: {} - {:?}", buff.len(), output);
         }
         println!("runtime: {:?}", start.elapsed());
         assert_eq!(5, 0);
+    }
+    #[test]
+    fn test_values_and_values_iter_equal() {
+        let mut buff = RollingBuffer::new(20);
+        for num in 0..40 {
+            // let num = ALPHABET.chars().nth(num).unwrap_or('Z');
+            buff.add(num);
+            let vec_out = buff.values();
+            let iter_out: Vec<_> = buff.values_iter().cloned().collect();
+            println!("len: {} - {:?}", buff.len(), vec_out);
+            println!("len: {} - {:?}", buff.len(), iter_out);
+            assert_eq!(vec_out, iter_out);
+        }
+    }
+    #[test]
+    fn test_enumerate() {
+        let mut buff = RollingBuffer::new(20);
+        for num in 0..40 {
+            buff.add(num);
+        }
+        let data: Vec<(usize, _)> = buff.values_iter().cloned().enumerate().collect();
+        println!("{:?}", data);
+        assert_eq!(5, 0)
+    }
+    #[test]
+    fn test_get_overflow() {
+        let mut buff = RollingBuffer::new(20);
+        for num in 0..40 {
+            buff.add(num);
+        }
+        assert_eq!(*buff.get(1000), 39);
+    }
+    #[test]
+    fn test_char_vec() {
+        let alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        let mut buff = RollingBuffer::new(20);
+        for num in 0..40 {
+            let num = alphabet.chars().nth(num).unwrap_or('Z');
+            buff.add(num);
+            let vec_out = buff.values();
+            let iter_out: Vec<_> = buff.values_iter().cloned().collect();
+            assert_eq!(vec_out, iter_out);
+        }
     }
 }
